@@ -1,4 +1,3 @@
-import os
 from config import api_key
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
@@ -12,10 +11,9 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 import bs4
 
-client = OpenAI(api_key=api_key)
 
 # Chat agent
-llm = ChatOpenAI(model="gpt-3.5-turbo")
+llm = ChatOpenAI(model="gpt-3.5-turbo", api_key=api_key)
 
 
 # Research agent

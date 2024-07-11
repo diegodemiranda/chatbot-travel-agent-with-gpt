@@ -5,13 +5,15 @@ from langchain import hub
 from langchain_community.document_loaders import WebBaseLoader
 from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
+from langchain_core.prompts import PromptTemplate
+from langchain_core.runnables import RunnableSequence
 import bs4
 
 # Chat agent
 llm = ChatOpenAI(model="gpt-3.5-turbo")
 
 # Query
-query = "What is the capital of France?"
+query = "What are the best destinations in Brazil?"
 
 
 # Research agent
@@ -39,4 +41,28 @@ def loadData():
     return retriever
 
 
-print(researchAgent(query, llm))
+# Get relevant documents
+def getRelevantDocs(query):
+    retriever = loadData()
+    relevant_documents = retriever.invoke(query)
+    return relevant_documents
+
+
+# Supervisor agent
+def supervisorAgent(query, llm, web_context, relevant_documents):
+    prompt_template = """You are a manager at a travel agency specializing in providing complete itineraries and
+    tips and use the context of events and ticket prices, user input and relevant documents to prepare your answers.
+    Context: {web_context}
+    Documents relevantes: {relevant_documents}
+    User input: {query}
+    Assist:
+    """
+    
+    prompt = PromptTemplate(
+        imput_variables={"web_context", "relevant_documents", "query"},
+        template=prompt_template
+    )
+    sequence = RunnableSequence(prompt | llm)
+    
+    response = sequence.invoke({"web_context": web_context, "relevant_documents": relevant_documents, "query": query})
+    return response

@@ -35,6 +35,8 @@ def loadData():
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
     splits = text_splitter.split_documents(docs)
     vector_store = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings)
+    retriever = vector_store.as_retriever()
+    return retriever
 
 
 print(researchAgent(query, llm))

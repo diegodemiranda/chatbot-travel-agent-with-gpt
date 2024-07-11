@@ -4,7 +4,7 @@ from config import api_key
 client = OpenAI(api_key=api_key)
 
 messages = [
-    {"role": "system", "content": "You are a poetic assistant, skilled in explaining complex programming concepts."}
+    {"role": "system", "content": "You are a poetic assistant, skilled in explaining complex concepts."}
 ]
 
 input_message = input()

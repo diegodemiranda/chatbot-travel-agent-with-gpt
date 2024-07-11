@@ -1,18 +1,21 @@
 import os
 from langchain_openai.chat_models import ChatOpenAI
-from langchain.agents import initialize_agent
+from langchain.agents import create_react_agent, AgentExecutor
 from langchain_community.agent_toolkits.load_tools import load_tools
+from langchain import hub
 
 llm = ChatOpenAI(model="gpt-3.5-turbo")
-tools = load_tools(['ddg-search','wikipedia'], llm=llm)
-
-agent = initialize_agent(
-    tools,
-    llm,
-    agent= 'zero-shot-react-description',
-    verbose=True
-)
 
 query = "What is the capital of France?"
 
-agent.run(query)
+
+def researchAgent(query, llm):
+    tools = load_tools(['ddg-search', 'wikipedia'], llm=llm)
+    prompt = hub.pull("hwchase17/react")
+    agent = create_react_agent(llm, tools, prompt)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, prompt=prompt, verbose=True)
+    web_context = agent_executor.invoke({"input": query})
+    return web_context["output"]
+
+
+print(researchAgent(query, llm))

@@ -37,7 +37,7 @@ the setup process, including environment preparation and dependency installation
 ### Steps
 
 1. **Build the Docker Image**:
-   ```sh
+   ```
    docker build --platform linux/x86_64 -t travel-agent-app .
    ```
 2. **Push the Image to Amazon ECR**:

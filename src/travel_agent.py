@@ -11,7 +11,6 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 import bs4
 
-
 # Chat agent
 llm = ChatOpenAI(model="gpt-3.5-turbo", api_key=api_key)
 

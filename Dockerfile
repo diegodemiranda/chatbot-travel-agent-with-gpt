@@ -14,13 +14,13 @@ COPY src/requirements.txt .
 RUN pip install -r requirements.txt
 
 #Copy the application code to the container
-COPY src/travel_agent.py ./src
+COPY src/travel_agent.py ./src/travel_agent.py
 
 #Copy the api_key.py file to the container
 COPY config ./config
 
 #Set the permissions to the travel_agent.py file
-RUN chmod +x ./src/travel_agent.py
+RUN chmod +x src/travel_agent.py
 
 #Set the CMD to your handler (could also be done as a
 # parameter override outside of the Dockerfile)

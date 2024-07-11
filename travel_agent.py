@@ -1,4 +1,7 @@
-from langchain_openai.chat_models import ChatOpenAI, OpenAIEmbeddings
+import os
+from config import api_key
+from langchain_openai.chat_models import ChatOpenAI
+from langchain_openai import OpenAIEmbeddings
 from langchain_community.agent_toolkits.load_tools import load_tools
 from langchain.agents import create_react_agent, AgentExecutor
 from langchain import hub
@@ -9,11 +12,10 @@ from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 import bs4
 
+client = OpenAI(api_key=api_key)
+
 # Chat agent
 llm = ChatOpenAI(model="gpt-3.5-turbo")
-
-# Query
-query = "What are the best destinations in Brazil?"
 
 
 # Research agent
@@ -21,12 +23,12 @@ def researchAgent(query, llm):
     tools = load_tools(['ddg-search', 'wikipedia'], llm=llm)
     prompt = hub.pull("hwchase17/react")
     agent = create_react_agent(llm, tools, prompt)
-    agent_executor = AgentExecutor(agent=agent, tools=tools, prompt=prompt, verbose=True)
+    agent_executor = AgentExecutor(agent=agent, tools=tools, prompt=prompt)
     web_context = agent_executor.invoke({"input": query})
     return web_context["output"]
 
 
-# Load data from the web
+# Load data from the web (RAG)
 def loadData():
     loader = WebBaseLoader(["https://www.dicasdeviagem.com/brasil/", "https://www.dicasdeviagem.com/europa/"],
                            bs_kwargs=dict(parse_only=bs4.SoupStrainer(class_=(
@@ -36,12 +38,11 @@ def loadData():
     docs = loader.load()
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
     splits = text_splitter.split_documents(docs)
-    vector_store = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings)
+    vector_store = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings(model="text-embedding-3-large"))
     retriever = vector_store.as_retriever()
     return retriever
 
 
-# Get relevant documents
 def getRelevantDocs(query):
     retriever = loadData()
     relevant_documents = retriever.invoke(query)
@@ -66,3 +67,17 @@ def supervisorAgent(query, llm, web_context, relevant_documents):
     
     response = sequence.invoke({"web_context": web_context, "relevant_documents": relevant_documents, "query": query})
     return response
+
+
+def getResponse(query, llm):
+    web_context = researchAgent(query, llm)
+    relevant_documents = getRelevantDocs(query)
+    response = supervisorAgent(query, llm, web_context, relevant_documents)
+    return response
+
+
+# Lambda handler
+def lambda_handler(event, context):
+    query = event.get("question")
+    response = getResponse(query, llm).content
+    return {"body": response, "status": 200}

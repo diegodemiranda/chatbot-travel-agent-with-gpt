@@ -10,6 +10,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
 import bs4
+import json
 
 # Chat agent
 llm = ChatOpenAI(model="gpt-3.5-turbo", api_key=api_key)
@@ -75,6 +76,16 @@ def getResponse(query, llm):
 
 # Lambda handler
 def lambda_handler(event, context):
-    query = event.get("question")
+    body =json.load(event.get("body", {}))
+    query = body.get("question", "Question parameter not provided.")
     response = getResponse(query, llm).content
-    return {"body": response, "status": 200}
+    return {
+        "statusCode": 200,
+        "headers":{
+            "Content-Type": "application/json",
+        },
+        "body": json.dumps({
+            "message": "task completed successfully",
+            "details": response
+        })
+    }

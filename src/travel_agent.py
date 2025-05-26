@@ -1,4 +1,7 @@
 from config import api_key
+
+if api_key is None:
+    raise ValueError("OPENAI_API_KEY environment variable not set. Please configure it before running the application.")
 from langchain_openai.chat_models import ChatOpenAI
 from langchain_openai import OpenAIEmbeddings
 from langchain_community.agent_toolkits.load_tools import load_tools
@@ -9,6 +12,7 @@ from langchain_community.vectorstores import Chroma
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_core.prompts import PromptTemplate
 from langchain_core.runnables import RunnableSequence
+from langchain_core.messages import AIMessage
 import bs4
 import json
 
@@ -22,8 +26,12 @@ def researchAgent(query, llm):
     prompt = hub.pull("hwchase17/react")
     agent = create_react_agent(llm, tools, prompt)
     agent_executor = AgentExecutor(agent=agent, tools=tools, prompt=prompt)
-    web_context = agent_executor.invoke({"input": query})
-    return web_context["output"]
+    try:
+        web_context = agent_executor.invoke({"input": query})
+        return web_context["output"]
+    except Exception as e:
+        print(f"Error in researchAgent for query '{query}': {e}") # For logging/debugging
+        return {"output": f"Failed to get web context due to: {e}"}
 
 
 # Load data from the web (RAG)
@@ -33,10 +41,21 @@ def loadData():
                                "post-template-default single single-post postid-54460 single-format-standard edition "
                                "desktop-device regular-nav chrome windows")))
                            )
-    docs = loader.load()
+    try:
+        docs = loader.load()
+    except Exception as e:
+        print(f"Error loading data from web: {e}")
+        raise e
+
     text_splitter = RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=200, length_function=len)
     splits = text_splitter.split_documents(docs)
-    vector_store = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings(model="text-embedding-3-large"))
+
+    try:
+        vector_store = Chroma.from_documents(documents=splits, embedding=OpenAIEmbeddings(model="text-embedding-3-large"))
+    except Exception as e:
+        print(f"Error creating vector store: {e}")
+        raise e
+
     retriever = vector_store.as_retriever()
     return retriever
 
@@ -58,12 +77,17 @@ def supervisorAgent(query, llm, web_context, relevant_documents):
     """
     
     prompt = PromptTemplate(
-        imput_variables={"web_context", "relevant_documents", "query"},
+        input_variables={"web_context", "relevant_documents", "query"},
         template=prompt_template
     )
     sequence = RunnableSequence(prompt | llm)
     
-    response = sequence.invoke({"web_context": web_context, "relevant_documents": relevant_documents, "query": query})
+    try:
+        response = sequence.invoke({"web_context": web_context, "relevant_documents": relevant_documents, "query": query})
+    except Exception as e:
+        print(f"Error in supervisorAgent for query '{query}': {e}")
+        # Return an AIMessage object with error content
+        return AIMessage(content=f"Error in supervisor agent: {e}")
     return response
 
 
@@ -76,16 +100,49 @@ def getResponse(query, llm):
 
 # Lambda handler
 def lambda_handler(event, context):
-    body =json.loads(event.get("body", {}))
-    query = body.get("question", "Question parameter not provided.")
-    response = getResponse(query, llm).content
-    return {
-        "statusCode": 200,
-        "headers":{
-            "Content-Type": "application/json",
-        },
-        "body": json.dumps({
-            "message": "task completed successfully",
-            "details": response
-        })
-    }
+    try:
+        body = json.loads(event.get("body", "{}"))
+    except json.JSONDecodeError:
+        return {
+            "statusCode": 400,
+            "headers": {
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({
+                "message": "Invalid JSON in request body."
+            })
+        }
+    query = body.get("question")
+    if query is None:
+        return {
+            "statusCode": 400,
+            "headers": {
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({
+                "message": "Missing 'question' parameter in request body."
+            })
+        }
+    try:
+        response_content = getResponse(query, llm).content
+        return {
+            "statusCode": 200,
+            "headers":{
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({
+                "message": "task completed successfully",
+                "details": response_content
+            })
+        }
+    except Exception as e:
+        return {
+            "statusCode": 500,
+            "headers": {
+                "Content-Type": "application/json",
+            },
+            "body": json.dumps({
+                "message": "An unexpected error occurred.",
+                "error_details": str(e)
+            })
+        }
